@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Change a map's style</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { position: absolute; top: 0; bottom: 50px; width: 100%; }
+        #zoom-buttons { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); }
+        #zoom-buttons button { margin-bottom: 5px; font-size: 16px; }
+        .suggestion { cursor: pointer; padding: 5px; }
+        .suggestion:hover { background-color: #efefef; }
+        .menu-container { display: none; }
+        #coordinates { position: absolute; bottom: 10px; left: 10px; background-color: #fff; padding: 5px; border: 1px solid #ccc; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <style>
+        #menu {
+            position: absolute;
+            background: #efefef;
+            padding: 10px;
+            font-family: 'Open Sans', sans-serif;
+        }
+        #three-dots {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            cursor: pointer;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+    </style>
+
+    <div id="map"></div>
+
+    <div id="zoom-buttons">
+        <button id="zoom-in">&#43;</button>
+        <button id="zoom-out">&#8722;</button>
+    </div>
+
+    <div id="three-dots" onclick="toggleMenu()">&#8942;</div>
+
+    <form id="search-form" style="position: absolute; top: 10px; left: 10px;">
+        <input type="text" id="query" name="query" placeholder="Search for a place">
+        <div id="suggestions"></div>
+        <button type="submit">Search</button>
+    </form>
+
+    <div id="coordinates"></div>
+
+    <div class="menu-container" id="menu" style="top: 50px;">
+        <input id="satellite-streets-v12" type="radio" name="rtoggle" value="satellite" checked="checked">
+        <label for="satellite-streets-v12">satellite streets</label>
+        <input id="light-v11" type="radio" name="rtoggle" value="light">
+        <label for="light-v11">light</label>
+        <input id="dark-v11" type="radio" name="rtoggle" value="dark">
+        <label for="dark-v11">dark</label>
+        <input id="streets-v12" type="radio" name="rtoggle" value="streets">
+        <label for="streets-v12">streets</label>
+        <input id="outdoors-v12" type="radio" name="rtoggle" value="outdoors">
+        <label for="outdoors-v12">outdoors</label>
+
+        <form id="placemark-form" style="margin-top: 10px;">
+            <input type="text" id="placemark-name" name="placemark-name" placeholder="Placemark Name">
+            <input type="text" id="placemark-description" name="placemark-description" placeholder="Placemark Description">
+
+            <label for="symbol-select">Select Emoji:</label>
+            <select id="symbol-select">
+                <option value="🚗">🚗 Car</option>
+                <option value="🏢">🏢 Building</option>
+                <option value="🍔">🍔 Food</option>
+            </select>
+
+            <label for="color-picker">Select Color:</label>
+            <input type="color" id="color-picker" value="#ff0000">
+
+            <button type="submit">Add Placemark</button>
+        </form>
+
+        <div id="filename-form" style="margin-top: 10px;">
+            <input type="text" id="map-filename" placeholder="Enter the filename">
+            <button id="save-map-btn" type="submit">Save Map</button>
+        </div>
+
+        <input type="file" id="load-map" accept=".json" style="display: none;">
+        <label for="load-map">Load Map</label>
+    </div>
+
+    <script>
+        mapboxgl.accessToken = 'pk.eyJ1IjoiaWtod2FuLTk5IiwiYSI6ImNsazhiOWJqNDAwa3gzY2w5d2U5cHFmNXkifQ.JWDtBUbBDDKBIAOSmhD7IA';
+        const map = new mapboxgl.Map({
+            container: 'map', 
+            style: 'mapbox://styles/mapbox/satellite-streets-v12', 
+            center: [55.858379, 37.434860], 
+            zoom: 13 
+        });
+
+        const layerList = document.getElementById('menu');
+        const inputs = layerList.getElementsByTagName('input');
+
+        for (const input of inputs) {
+            input.onclick = (layer) => {
+                const layerId = layer.target.id;
+                map.setStyle('mapbox://styles/mapbox/' + layerId);
+            };
+        }
+
+        document.getElementById('zoom-in').addEventListener('click', () => {
+            map.zoomIn();
+        });
+
+        document.getElementById('zoom-out').addEventListener('click', () => {
+            map.zoomOut();
+        });
+
+        const queryInput = document.getElementById('query');
+        const suggestions = document.getElementById('suggestions');
+        const coordinates = document.getElementById('coordinates');
+
+        queryInput.addEventListener('input', (event) => {
+            const query = event.target.value;
+            if (query.length > 0) {
+                fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${mapboxgl.accessToken}&autocomplete=true&limit=5`)
+                    .then((response) => response.json())
+                    .then((data) => {
+                        suggestions.innerHTML = '';
+
+                        data.features.forEach((feature) => {
+                            const suggestion = document.createElement('div');
+                            suggestion.classList.add('suggestion');
+                            suggestion.textContent = feature.place_name;
+                            suggestion.addEventListener('click', () => {
+                                const center = feature.center;
+                                const zoom = 15;
+                                map.flyTo({ center, zoom });
+                                queryInput.value = feature.place_name;
+                                suggestions.innerHTML = '';
+                            });
+                            suggestions.appendChild(suggestion);
+                        });
+                    })
+                    .catch((error) => {
+                        console.error('Error:', error);
+                    });
+            } else {
+                suggestions.innerHTML = '';
+            }
+        });
+
+        document.getElementById('search-form').addEventListener('submit', (event) => {
+            event.preventDefault();
+            const query = document.getElementById('query').value;
+
+            fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${mapboxgl.accessToken}`)
+                .then((response) => response.json())
+                .then((data) => {
+                    if (data.features.length > 0) {
+                        const place = data.features[0];
+                        const center = place.center;
+                        const zoom = 15;
+
+                        map.flyTo({ center, zoom });
+                    } else {
+                        console.log('No results found.');
+                    }
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                });
+        });
+
+        document.getElementById('placemark-form').addEventListener('submit', (event) => {
+            event.preventDefault();
+            const name = document.getElementById('placemark-name').value;
+            const description = document.getElementById('placemark-description').value;
+            const symbol = document.getElementById('symbol-select').value;
+            const color = document.getElementById('color-picker').value;
+            const lngLat = map.getCenter();
+
+            const markerOptions = {
+                color: color,
+                draggable: true
+            };
+
+            const popupHTML = `<h3>${name}</h3><p>${description}</p><div style="font-size: 20px;">${symbol}</div>`;
+            const marker = new mapboxgl.Marker(markerOptions)
+                .setLngLat(lngLat)
+                .setPopup(new mapboxgl.Popup().setHTML(popupHTML))
+                .addTo(map);
+
+            savePlacemarkToStorage(marker);
+        });
+
+        document.getElementById('save-map-btn').addEventListener('click', () => {
+            const filename = document.getElementById('map-filename').value;
+            if (!filename) {
+                alert('Please enter a filename.');
+                return;
+            }
+
+            const mapState = {
+                center: map.getCenter(),
+                zoom: map.getZoom(),
+                style: map.getStyle(),
+                placemarks: []
+            };
+
+            map.markers.forEach((placemark) => {
+                const markerData = {
+                    name: placemark.name,
+                    description: placemark.description,
+                    symbol: placemark.getPopup().getContent(),
+                    color: placemark.options.color,
+                    lngLat: placemark.getLngLat().toArray()
+                };
+                mapState.placemarks.push(markerData);
+            });
+
+            const mapStateBlob = new Blob([JSON.stringify(mapState)], { type: 'application/json' });
+            const downloadLink = document.createElement('a');
+            downloadLink.href = URL.createObjectURL(mapStateBlob);
+            downloadLink.download = `${filename}.json`;
+            downloadLink.click();
+            console.log('Map state saved.');
+        });
+
+        document.getElementById('load-map').addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const mapState = JSON.parse(e.target.result);
+                    map.setCenter(mapState.center);
+                    map.setZoom(mapState.zoom);
+                    map.setStyle(mapState.style);
+                    console.log('Map state loaded.');
+
+                    map.markers.forEach((placemark) => {
+                        placemark.remove();
+                    });
+                    map.markers = [];
+
+                    mapState.placemarks.forEach((placemarkData) => {
+                        const { symbol, color, lngLat, name, description } = placemarkData;
+                        const popupHTML = `<h3>${name}</h3><p>${description}</p><div style="font-size: 20px;">${symbol}</div>`;
+
+                        const markerOptions = {
+                            color: color,
+                            draggable: true
+                        };
+                        const marker = new mapboxgl.Marker(markerOptions)
+                            .setLngLat(lngLat)
+                            .setPopup(new mapboxgl.Popup().setHTML(popupHTML))
+                            .addTo(map);
+
+                        marker.name = name;
+                        marker.description = description;
+                        map.markers.push(marker);
+                    });
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        map.markers = [];
+
+        map.on('click', (event) => {
+            const lngLat = event.lngLat;
+            coordinates.innerHTML = `Clicked Coordinates: ${lngLat.lng.toFixed(5)}, ${lngLat.lat.toFixed(5)}`;
+        });
+
+        function savePlacemarkToStorage(marker) {
+            map.markers.push(marker);
+
+            const savedMarkers = JSON.parse(localStorage.getItem('mapMarkers')) || [];
+            savedMarkers.push({
+                name: marker.name,
+                description: marker.description,
+                symbol: marker.getPopup().getContent(),
+                color: marker.options.color,
+                lngLat: marker.getLngLat().toArray()
+            });
+            localStorage.setItem('mapMarkers', JSON.stringify(savedMarkers));
+
+            console.log('Placemark saved.');
+        }
+
+        function loadPlacemarksFromStorage() {
+            const savedMarkers = JSON.parse(localStorage.getItem('mapMarkers')) || [];
+
+            savedMarkers.forEach((placemarkData) => {
+                const { symbol, color, lngLat, name, description } = placemarkData;
+                const popupHTML = `<h3>${name}</h3><p>${description}</p><div style="font-size: 20px;">${symbol}</div>`;
+
+                const markerOptions = {
+                    color: color,
+                    draggable: true
+                };
+                const marker = new mapboxgl.Marker(markerOptions)
+                    .setLngLat(lngLat)
+                    .setPopup(new mapboxgl.Popup().setHTML(popupHTML))
+                    .addTo(map);
+
+                marker.name = name;
+                marker.description = description;
+                map.markers.push(marker);
+            });
+
+            console.log('Placemarks loaded.');
+        }
+
+        loadPlacemarksFromStorage();
+        
+        function toggleMenu() {
+            const menuContainer = document.querySelector('.menu-container');
+            if (menuContainer.style.display === 'none') {
+                menuContainer.style.display = 'block';
+            } else {
+                menuContainer.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
