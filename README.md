@@ -31,7 +31,7 @@ or
 - **Add Labels:** Users have the option to add labels or placemarks to the map. To add a label, provide a name, description, and choose an emoji symbol and color.
 
 - **Customize Map Appearance:** Users can change the map's style by selecting different map themes, such as satellite streets, light, dark, streets, and outdoors.
-
+- **Display Information:** Users can see the informations of the places including review and photos when the places are clicked
 - **Zoom and Move:** Users can zoom in and out, as well as move around the map to explore different areas.
 - **Search for places:** User can search and find specific locations on the map, search by place name, category, or address and receive search results displayed on the map or as a list of places.
 
